@@ -16,8 +16,14 @@ private:
     int altura;
     int espaco_lateral;
 
+    static constexpr int MARCADOR_INICIO = 3;
+    static constexpr int MARCADOR_CENTRAL = 5;
+    static constexpr int MARCADOR_FIM = 3;
+    static constexpr int DIGITOS = 8;
+    static constexpr int LARGURA_CODIFICACAO = 7;
+
 public:
-    CodigoDeBarras(const std::string &id, int largura = 3, int altura = 50, int espaco = 4)
+    CodigoDeBarras(const std::string &id, int largura = 7, int altura = 50, int espaco = 4)
         : identificador(id), largura_por_digito(largura), altura(altura), espaco_lateral(espaco)
     {
         if (!validarIdentificador(id))
@@ -28,28 +34,47 @@ public:
 
     std::vector<std::string> gerarImagemPBM() const
     {
-        int largura_total = espaco_lateral * 2 + identificador.size() * largura_por_digito;
-        std::vector<std::string> imagem(altura, std::string(largura_total, '0'));
+        int largura_total = espaco_lateral * 2 +
+                            MARCADOR_INICIO +
+                            DIGITOS * LARGURA_CODIFICACAO +
+                            MARCADOR_CENTRAL +
+                            MARCADOR_FIM;
 
-        for (int i = 0; i < altura; ++i)
+        // Adiciona altura extra para exibir o número abaixo do código de barras
+        int altura_total = altura + 8; // 8 linhas para o número
+        std::vector<std::string> imagem(altura_total, std::string(largura_total, '0'));
+
+        // Adiciona o marcador de início
+        preencherArea(imagem, espaco_lateral, MARCADOR_INICIO, '1', 0, altura);
+
+        // Adiciona os dígitos codificados
+        for (size_t i = 0; i < identificador.size() / 2; ++i)
         {
-            for (int j = 0; j < espaco_lateral; ++j)
-            {
-                imagem[i][j] = '0';
-                imagem[i][largura_total - j - 1] = '0';
-            }
+            int inicio = espaco_lateral + MARCADOR_INICIO + i * LARGURA_CODIFICACAO;
+            preencherArea(imagem, inicio, LARGURA_CODIFICACAO, (identificador[i] - '0') % 2 == 0 ? '1' : '0', 0, altura);
         }
 
+        // Adiciona o marcador central
+        preencherArea(imagem, espaco_lateral + MARCADOR_INICIO + DIGITOS / 2 * LARGURA_CODIFICACAO, MARCADOR_CENTRAL, '1', 0, altura);
+
+        // Adiciona os dígitos codificados restantes
+        for (size_t i = identificador.size() / 2; i < identificador.size(); ++i)
+        {
+            int inicio = espaco_lateral + MARCADOR_INICIO + MARCADOR_CENTRAL + (i - 4) * LARGURA_CODIFICACAO;
+            preencherArea(imagem, inicio, LARGURA_CODIFICACAO, (identificador[i] - '0') % 2 == 0 ? '1' : '0', 0, altura);
+        }
+
+        // Adiciona o marcador de fim
+        preencherArea(imagem, largura_total - espaco_lateral - MARCADOR_FIM, MARCADOR_FIM, '1', 0, altura);
+
+        // Adiciona o número abaixo do código de barras
         for (size_t i = 0; i < identificador.size(); ++i)
         {
-            int inicio = espaco_lateral + i * largura_por_digito;
-            char bit = (identificador[i] - '0') % 2 == 0 ? '1' : '0';
-            for (int x = 0; x < largura_por_digito; ++x)
+            char digito = identificador[i];
+            int inicio = espaco_lateral + MARCADOR_INICIO + i * LARGURA_CODIFICACAO + LARGURA_CODIFICACAO / 2;
+            if (inicio < largura_total)
             {
-                for (int y = 0; y < altura; ++y)
-                {
-                    imagem[y][inicio + x] = bit;
-                }
+                imagem[altura + 1][inicio] = digito; // Posiciona o caractere na linha extra
             }
         }
 
@@ -89,10 +114,10 @@ public:
         }
 
         std::string identificador;
-        size_t largura_por_digito = (largura - espaco_lateral * 2) / 8;
-        for (size_t i = 0; i < 8; ++i)
+        size_t largura_por_digito = LARGURA_CODIFICACAO;
+        for (size_t i = 0; i < DIGITOS; ++i)
         {
-            size_t inicio = espaco_lateral + i * largura_por_digito;
+            size_t inicio = espaco_lateral + MARCADOR_INICIO + i * largura_por_digito;
             char bit = imagemPBM[0][inicio];
             identificador += (bit == '1') ? '0' : '1';
         }
@@ -102,7 +127,7 @@ public:
 
     static bool validarIdentificador(const std::string &id)
     {
-        if (id.size() != 8)
+        if (id.size() != DIGITOS)
         {
             return false;
         }
@@ -114,6 +139,18 @@ public:
             }
         }
         return true;
+    }
+
+private:
+    void preencherArea(std::vector<std::string> &imagem, int inicio, int largura, char valor, int inicio_altura, int fim_altura) const
+    {
+        for (int i = inicio_altura; i < fim_altura; ++i)
+        {
+            for (int j = 0; j < largura; ++j)
+            {
+                imagem[i][inicio + j] = valor;
+            }
+        }
     }
 };
 
